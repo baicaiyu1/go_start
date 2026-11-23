@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>注册用户接口测试 · POST /api/v1/users</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e6e9ef;
+    --muted: #8b93a1;
+    --green: #3ddc97;
+    --red: #ff6b6b;
+    --yellow: #ffcc66;
+    --blue: #6aa9ff;
+    --mono: ui-monospace, "Cascadia Code", Consolas, "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(900px 500px at 10% -10%, #1b2a4a 0%, transparent 60%),
+      radial-gradient(700px 400px at 110% 10%, #1d3b33 0%, transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    padding: 28px 20px 60px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: .5px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+  .sub code { color: var(--blue); font-family: var(--mono); }
+
+  .endpoint {
+    display: flex; gap: 10px; align-items: center; margin-bottom: 18px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
+  }
+  .endpoint label { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .endpoint input {
+    flex: 1; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); padding: 9px 11px; font-family: var(--mono); font-size: 13px; outline: none;
+  }
+  .endpoint input:focus { border-color: var(--blue); }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
+  }
+  .card h2 { font-size: 14px; margin: 0 0 12px; color: var(--muted); font-weight: 600; letter-spacing: .5px; }
+
+  .presets { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  button {
+    border: 1px solid var(--border); border-radius: 9px; padding: 10px 14px;
+    font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text);
+    background: var(--panel-2); transition: transform .08s ease, filter .15s ease;
+  }
+  button:hover { filter: brightness(1.15); }
+  button:active { transform: translateY(1px); }
+  button.ok { background: rgba(61,220,151,.14); border-color: rgba(61,220,151,.45); color: var(--green); }
+  button.bad { background: rgba(255,107,107,.13); border-color: rgba(255,107,107,.45); color: var(--red); }
+  button.primary { background: rgba(106,169,255,.16); border-color: rgba(106,169,255,.5); color: var(--blue); }
+  button:disabled { opacity: .55; cursor: wait; }
+
+  textarea {
+    width: 100%; height: 268px; resize: vertical; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 10px; color: var(--text);
+    padding: 12px; font-family: var(--mono); font-size: 13px; line-height: 1.6; outline: none;
+  }
+  textarea:focus { border-color: var(--blue); }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+  .status-line { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .badge {
+    font-family: var(--mono); font-size: 13px; font-weight: 700;
+    padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted);
+  }
+  .badge.ok { color: var(--green); border-color: rgba(61,220,151,.45); background: rgba(61,220,151,.1); }
+  .badge.bad { color: var(--red); border-color: rgba(255,107,107,.45); background: rgba(255,107,107,.1); }
+  .badge.warn { color: var(--yellow); border-color: rgba(255,204,102,.45); background: rgba(255,204,102,.1); }
+  .meta { color: var(--muted); font-size: 12px; font-family: var(--mono); }
+
+  pre {
+    margin: 0; padding: 12px; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 10px; font-family: var(--mono); font-size: 13px; line-height: 1.65;
+    max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+  }
+  .json-key { color: var(--blue); }
+  .json-str { color: var(--green); }
+  .json-num { color: var(--yellow); }
+  .json-bool { color: #c792ea; }
+  .json-null { color: var(--muted); }
+
+  .req-resp { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+  @media (max-width: 900px) { .req-resp { grid-template-columns: 1fr; } }
+  .spinner {
+    display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.25);
+    border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite;
+    vertical-align: -2px; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty { color: var(--muted); font-size: 13px; padding: 24px 6px; text-align: center; }
+  .tips { margin-top: 18px; color: var(--muted); font-size: 12px; line-height: 1.9; }
+  .tips b { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>注册用户接口测试</h1>
+  <div class="sub">目标接口 <code>POST /api/v1/users</code> · 启动服务：<code>go run .</code>（默认 8080）</div>
+
+  <div class="endpoint">
+    <label for="url">接口地址</label>
+    <input id="url" value="http://127.0.0.1:8080/api/v1/users" spellcheck="false">
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>请求参数（JSON）</h2>
+      <div class="presets">
+        <button class="ok" onclick="runValid()">参数完全正确</button>
+        <button class="bad" onclick="runInvalid()">参数错误</button>
+        <button class="primary" onclick="send()">发送请求</button>
+      </div>
+      <textarea id="payload" spellcheck="false">{
+  "name": "八月",
+  "age": 18,
+  "email": "bayue@example.com",
+  "role": "user",
+  "tags": ["go", "hertz"]
+}</textarea>
+      <div class="hint">快捷键 Ctrl + Enter 发送。可以直接改 JSON 再发。</div>
+    </div>
+
+    <div class="card">
+      <h2>响应结果</h2>
+      <div class="status-line">
+        <span id="status" class="badge">未发送</span>
+        <span id="duration" class="meta"></span>
+      </div>
+      <pre id="respBody"><span class="empty">点击左侧按钮发起请求</span></pre>
+    </div>
+  </div>
+
+  <div class="req-resp">
+    <div class="card">
+      <h2>实际请求</h2>
+      <pre id="reqView"><span class="empty">等待请求</span></pre>
+    </div>
+    <div class="card">
+      <h2>校验规则说明</h2>
+      <pre id="ruleView">name    : 必填，2~20 个字符
+age     : 必填，0~130
+email   : 必填，合法邮箱
+role    : 可省略（默认 user），只能是 admin / user
+tags    : 最多 5 个，每个至少 1 个字符
+
+成功：201 {"data":{...}}
+校验失败：422 {"code":422,"message":"参数校验失败","fields":{"字段":"规则"}}
+格式错误：400 {"code":400,"message":"参数格式错误"}</pre>
+    </div>
+  </div>
+
+  <div class="tips">
+    <b>打不开或报 Failed to fetch？</b> 依次检查：1) 服务是否已启动；2) 地址端口是否为 8080；
+    3) 服务端需返回 CORS 头（本项目已在 <code>biz/middleware</code> 里开启）。<br>
+    <b>说明：</b>页面用 <code>fetch</code> 直接把 JSON 发给 Hertz，展示状态码、耗时和原始响应体。
+  </div>
+</div>
+
+<script>
+const VALID_PAYLOAD = {
+  name: "八月",
+  age: 18,
+  email: "bayue@example.com",
+  role: "user",
+  tags: ["go", "hertz"]
+};
+
+const INVALID_PAYLOAD = {
+  name: "a",
+  age: 200,
+  email: "not-an-email",
+  role: "root",
+  tags: [""]
+};
+
+const $ = (id) => document.getElementById(id);
+
+function fill(obj) {
+  $("payload").value = JSON.stringify(obj, null, 2);
+}
+
+function runValid() {
+  fill(VALID_PAYLOAD);
+  send();
+}
+
+function runInvalid() {
+  fill(INVALID_PAYLOAD);
+  send();
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// 给 JSON 文本上色，纯展示用
+function highlight(text) {
+  const safe = escapeHtml(text);
+  return safe.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    (match) => {
+      let cls = "json-num";
+      if (/^"/.test(match)) cls = /:$/.test(match) ? "json-key" : "json-str";
+      else if (/true|false/.test(match)) cls = "json-bool";
+      else if (/null/.test(match)) cls = "json-null";
+      return `<span class="${cls}">${match}</span>`;
+    }
+  );
+}
+
+function pretty(text) {
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch (e) {
+    return text;
+  }
+}
+
+async function send() {
+  const url = $("url").value.trim();
+  const raw = $("payload").value;
+
+  let body;
+  try {
+    body = JSON.stringify(JSON.parse(raw));
+  } catch (e) {
+    setStatus("JSON 格式错误", "warn");
+    $("respBody").innerHTML = `<span class="json-bad">本地 JSON 解析失败：${escapeHtml(e.message)}</span>`;
+    return;
+  }
+
+  $("reqView").innerHTML = highlight(
+    `POST ${url}\nContent-Type: application/json\n\n${pretty(raw)}`
+  );
+  setStatus('<span class="spinner"></span>请求中', "warn");
+  $("duration").textContent = "";
+  $("respBody").innerHTML = `<span class="empty">等待响应…</span>`;
+
+  const start = performance.now();
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body
+    });
+    const cost = Math.round(performance.now() - start);
+    const text = await res.text();
+
+    const cls = res.status >= 200 && res.status < 300 ? "ok" : (res.status >= 500 ? "bad" : "bad");
+    setStatus(`HTTP ${res.status} ${res.statusText || ""}`, cls);
+    $("duration").textContent = `${cost} ms · ${text.length} bytes`;
+    $("respBody").innerHTML = highlight(pretty(text || "(空响应)"));
+  } catch (err) {
+    const cost = Math.round(performance.now() - start);
+    setStatus("请求失败", "bad");
+    $("duration").textContent = `${cost} ms`;
+    $("respBody").innerHTML =
+      `<span class="json-bad">${escapeHtml(String(err))}\n\n` +
+      `常见原因：服务没启动、端口不对、跨域被拦截。\n` +
+      `先在终端确认 http://127.0.0.1:8080/health 能返回 {"message":"healthy"}。</span>`;
+  }
+}
+
+function setStatus(html, cls) {
+  const el = $("status");
+  el.className = "badge " + (cls || "");
+  el.innerHTML = html;
+}
+
+$("payload").addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    e.preventDefault();
+    send();
+  }
+});
+</script>
+</body>
+</html>

@@ -3,16 +3,20 @@
 package main
 
 import (
-	"hertz-tutorial/demo/biz/middleware"
 	"time"
+
+	"hertz-tutorial/demo/biz/middleware"
+	"hertz-tutorial/demo/biz/validator"
 
 	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
 	"github.com/cloudwego/hertz/pkg/app/server"
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network/standard"
+	"github.com/cloudwego/hertz/pkg/protocol"
 )
 
 func main() {
+	vd := validator.NewValidator()
+
 	h := server.New(
 		server.WithHostPorts("0.0.0.0:8080"),
 		server.WithReadTimeout(10*time.Second),
@@ -22,15 +26,18 @@ func main() {
 		server.WithExitWaitTime(10*time.Second),
 		server.WithHandleMethodNotAllowed(true),
 		server.WithTransport(standard.NewTransporter),
+		server.WithCustomValidatorFunc(func(_ *protocol.Request, req any) error {
+			// 对传入的结构体执行校验
+			return vd.Struct(req)
+		}),
 	)
 
 	h.Use(recovery.Recovery())
-	h.Use(middleware.RequestInfo())
+	h.Use(middleware.CORS())
 
 	// 路由注册入口：router_gen.go -> biz/router（IDL）+ router.go（手写）
 	register(h)
 
-	if err := h.Run(); err != nil {
-		hlog.Fatalf("server exited: %v", err)
-	}
+	// Spin 会阻塞运行，并内置处理 SIGINT/SIGTERM 做优雅退出
+	h.Spin()
 }

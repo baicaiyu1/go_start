@@ -3,32 +3,13 @@
 package main
 
 import (
-	"context"
+	"hertz-tutorial/demo/biz/router"
 
-	handler "hertz-tutorial/demo/biz/handler"
-
-	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
-	"github.com/cloudwego/hertz/pkg/common/utils"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
 // customizeRegister registers customize routers.
+// 具体分组在 biz/router 里，这里只做转接，保证 main 包足够薄。
 func customizedRegister(r *server.Hertz) {
-	r.GET("/ping", handler.Ping)
-	r.GET("/health", handler.Health)
-
-	// 版本1接口：只做 URL -> handler 映射，业务在 handler/service 里
-	v1 := r.Group("/api/v1")
-	v1.GET("/users/me", handler.GetCurrentUser)
-	v1.GET("/users/:id", handler.GetUserByID)
-	v1.GET("/files/*filepath", handler.GetFile)
-
-	// 错误路由处理
-	r.NoRoute(func(ctx context.Context, c *app.RequestContext) {
-		c.JSON(consts.StatusNotFound, utils.H{"message": "页面找不到啦"})
-	})
-	r.NoMethod(func(ctx context.Context, c *app.RequestContext) {
-		c.JSON(consts.StatusMethodNotAllowed, utils.H{"message": "方法不允许"})
-	})
+	router.Register(r)
 }
