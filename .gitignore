@@ -35,3 +35,7 @@ _testmain.go
 *.local.yml
 dumped_hertz_remote_config.json
 		  
+# 运行时上传产物
+uploads/
+
+# 生成的 Swagger 文档保留入库

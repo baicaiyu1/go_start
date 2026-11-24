@@ -10,11 +10,11 @@ package router
 import (
 	"context"
 
-	"hertz-tutorial/demo/biz/middleware"
+	"hertz-tutorial/demo/biz/errs"
+	"hertz-tutorial/demo/biz/response"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
-	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
 
@@ -30,17 +30,18 @@ func Register(r *server.Hertz) {
 	registerSystem(r)
 
 	// v1 版本组：组级中间件统一挂在这里（以后鉴权、限流也加到这个参数里）
-	v1 := r.Group("/api/v1", middleware.RequestInfo())
+	v1 := r.Group("/api/v1")
 
 	// 业务领域：每个模块只注册自己的路由
 	registerUser(v1)
 	registerFile(v1)
+	registerUpload(v1)
 
 	// 兜底路由
 	r.NoRoute(func(ctx context.Context, c *app.RequestContext) {
-		c.JSON(consts.StatusNotFound, utils.H{"message": "页面找不到啦"})
+		response.Fail(c, consts.StatusNotFound, errs.CodeNotFound, "接口不存在")
 	})
 	r.NoMethod(func(ctx context.Context, c *app.RequestContext) {
-		c.JSON(consts.StatusMethodNotAllowed, utils.H{"message": "方法不允许"})
+		response.Fail(c, consts.StatusMethodNotAllowed, errs.CodeMethodNotAllowed, "请求方法不允许")
 	})
 }

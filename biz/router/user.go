@@ -20,7 +20,11 @@ func registerUser(g *route.RouterGroup) {
 	users := g.Group("/users")
 	users.POST("", h.Create)       // POST   /api/v1/users
 	users.GET("/me", h.GetCurrent) // GET    /api/v1/users/me（静态路由写在 :id 前面）
-	users.GET("/:id", h.GetByID)   // GET    /api/v1/users/:id
+	// users.GET("/:id", h.GetByID)   // GET    /api/v1/users/:id
+	users.GET("/index", h.IndexHTML)
+	users.GET("/old", h.RedirectIndex)
+	users.GET("/:id/xml", h.GetByIDXML)
+	users.GET("/:id", h.GetByIDJSON)
 
 	// 浏览器跨域预检：CORS 中间件已全局处理，这里保证路由存在
 	users.OPTIONS("", func(ctx context.Context, c *app.RequestContext) {

@@ -2,12 +2,10 @@ package user
 
 import (
 	"context"
-	"errors"
-	"fmt"
-)
+	"net/http"
 
-// ErrUserNotFound 业务错误，由 handler 映射成 HTTP 404。
-var ErrUserNotFound = errors.New("user not found")
+	"hertz-tutorial/demo/biz/errs"
+)
 
 // Service 用户业务层：写业务规则，不关心 HTTP，也不关心 SQL。
 type Service struct {
@@ -22,14 +20,14 @@ func NewService(repo *Repository) *Service {
 // Get 业务规则：ID 必须合法，查不到统一返回 ErrUserNotFound。
 func (s *Service) Get(ctx context.Context, id int64) (*User, error) {
 	if id <= 0 {
-		return nil, fmt.Errorf("invalid user id: %d", id)
+		return nil, errs.New(http.StatusBadRequest, errs.CodeBadRequest, "用户 ID 不合法")
 	}
 	u, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if u == nil {
-		return nil, ErrUserNotFound
+		return nil, errs.ErrUserNotFound
 	}
 	return u, nil
 }
@@ -41,7 +39,7 @@ func (s *Service) Current(ctx context.Context) (*User, error) {
 		return nil, err
 	}
 	if u == nil {
-		return nil, ErrUserNotFound
+		return nil, errs.ErrUserNotFound
 	}
 	return u, nil
 }

@@ -3,18 +3,52 @@
 package main
 
 import (
+	"context"
+	"os"
 	"time"
 
+	"hertz-tutorial/demo/biz/bootstrap"
+	limits "hertz-tutorial/demo/biz/consts"
 	"hertz-tutorial/demo/biz/middleware"
+	"hertz-tutorial/demo/biz/system"
 	"hertz-tutorial/demo/biz/validator"
 
-	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
+	_ "hertz-tutorial/demo/docs" // swag init 生成的文档包，必须 blank import 才会注册
+
 	"github.com/cloudwego/hertz/pkg/app/server"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/network/standard"
 	"github.com/cloudwego/hertz/pkg/protocol"
+	"github.com/hertz-contrib/swagger"
+	swaggerFiles "github.com/swaggo/files"
 )
 
+// @title Hertz 教程示例 API
+// @version 1.0
+// @description 参数绑定与校验示例：用户、健康检查、文件路由。
+// @host 127.0.0.1:8080
+// @BasePath /
+// @schemes http
 func main() {
+	_ = os.MkdirAll("./uploads", 0o755)
+	// 初始化数据库、Redis、MQ 等长生命周期资源；失败会回滚已初始化的资源
+	app, err := bootstrap.New(context.Background())
+	if err != nil {
+		hlog.Fatalf("初始化应用失败: %v", err)
+	}
+	// 下线阶段 readiness=false，/health 会返回 503，便于负载均衡先摘流量
+	system.SetReadinessCheck(app.Ready)
+
+	// 启动阶段如果 panic（例如路由重复注册），兜底释放已初始化资源
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = app.Close(closeCtx)
+			panic(recovered)
+		}
+	}()
+
 	vd := validator.NewValidator()
 
 	h := server.New(
@@ -22,7 +56,7 @@ func main() {
 		server.WithReadTimeout(10*time.Second),
 		server.WithWriteTimeout(10*time.Second),
 		server.WithIdleTimeout(60*time.Second),
-		server.WithMaxRequestBodySize(8<<20), // 8MB
+		server.WithMaxRequestBodySize(limits.MaxRequestBodySize),
 		server.WithExitWaitTime(10*time.Second),
 		server.WithHandleMethodNotAllowed(true),
 		server.WithTransport(standard.NewTransporter),
@@ -32,12 +66,39 @@ func main() {
 		}),
 	)
 
-	h.Use(recovery.Recovery())
+	// OnShutdown 只做“准备下线”：标记不可用、通知后台任务停止
+	// 数据库/Redis/MQ 的关闭放到 h.Spin() 返回之后
+	h.Engine.OnShutdown = append(h.Engine.OnShutdown, func(ctx context.Context) {
+		app.BeforeShutdown(ctx)
+	})
+
+	// 全局中间件顺序：panic 恢复最外层，Trace 尽早注入，访问日志在错误收敛之前
+	h.Use(middleware.Recovery())
+	h.Use(middleware.Trace())
+	h.Use(middleware.AccessLog())
+	h.Use(middleware.ErrorHandler())
 	h.Use(middleware.CORS())
 
+	// Swagger UI：/swagger/index.html；doc.json 由 docs 包提供
+	// 注意：生产环境不要直接暴露，至少加鉴权或只在开发环境注册
+	h.GET("/swagger/*any", swagger.WrapHandler(swaggerFiles.Handler, swagger.URL("/swagger/doc.json")))
+	h.LoadHTMLGlob("templates/*")
 	// 路由注册入口：router_gen.go -> biz/router（IDL）+ router.go（手写）
 	register(h)
 
-	// Spin 会阻塞运行，并内置处理 SIGINT/SIGTERM 做优雅退出
+	// Spin 会阻塞运行，并内置处理 SIGINT/SIGHUP/SIGTERM 做优雅退出
 	h.Spin()
+
+	// Spin 返回代表：HTTP 已停止接收新请求，在途请求也处理完了
+	// 此时再释放数据库、Redis、MQ 等资源，避免打断正常请求
+	hlog.Info("[shutdown] HTTP 已停止，开始释放资源")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	if err := app.Close(shutdownCtx); err != nil {
+		hlog.Errorf("[shutdown] %v", err)
+		return
+	}
+	hlog.Info("[shutdown] 资源释放完成")
 }
