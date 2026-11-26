@@ -1,5 +1,23 @@
 basePath: /
 definitions:
+  stream.ChatReq:
+    properties:
+      prompt:
+        maxLength: 2000
+        minLength: 1
+        type: string
+    required:
+    - prompt
+    type: object
+  stream.ErrorResp:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+      trace_id:
+        type: string
+    type: object
   system.FileData:
     properties:
       filepath:
@@ -201,6 +219,60 @@ paths:
       summary: 回显文件路径
       tags:
       - 基础设施
+  /api/v1/stream/chat:
+    post:
+      consumes:
+      - application/json
+      description: 接收 prompt，以 delta 事件逐段返回文本，最后发 done；接大模型时替换 mockReply 即可
+      parameters:
+      - description: 对话请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/stream.ChatReq'
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: SSE 事件流
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/stream.ErrorResp'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/stream.ErrorResp'
+      summary: 流式对话（mock）
+      tags:
+      - 流式
+  /api/v1/stream/demo:
+    get:
+      description: 按 interval_ms 推送 count 条事件，每 15s 发一次心跳；客户端断开或写失败立即退出
+      parameters:
+      - default: 10
+        description: 事件条数，1-100
+        in: query
+        name: count
+        type: integer
+      - default: 1000
+        description: 推送间隔（毫秒），100-10000
+        in: query
+        name: interval_ms
+        type: integer
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: SSE 事件流
+          schema:
+            type: string
+      summary: SSE 定时推送演示
+      tags:
+      - 流式
   /api/v1/upload/batch:
     post:
       consumes:

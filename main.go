@@ -8,17 +8,11 @@ import (
 	"time"
 
 	"hertz-tutorial/demo/biz/bootstrap"
-	limits "hertz-tutorial/demo/biz/consts"
-	"hertz-tutorial/demo/biz/middleware"
 	"hertz-tutorial/demo/biz/system"
-	"hertz-tutorial/demo/biz/validator"
 
 	_ "hertz-tutorial/demo/docs" // swag init 生成的文档包，必须 blank import 才会注册
 
-	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
-	"github.com/cloudwego/hertz/pkg/network/standard"
-	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/hertz-contrib/swagger"
 	swaggerFiles "github.com/swaggo/files"
 )
@@ -30,7 +24,10 @@ import (
 // @BasePath /
 // @schemes http
 func main() {
-	_ = os.MkdirAll("./uploads", 0o755)
+	if err := os.MkdirAll("./uploads", 0o755); err != nil {
+		hlog.Fatalf("创建上传目录失败: %v", err)
+	}
+
 	// 初始化数据库、Redis、MQ 等长生命周期资源；失败会回滚已初始化的资源
 	app, err := bootstrap.New(context.Background())
 	if err != nil {
@@ -42,42 +39,13 @@ func main() {
 	// 启动阶段如果 panic（例如路由重复注册），兜底释放已初始化资源
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_ = app.Close(closeCtx)
+			_ = closeApp(app)
 			panic(recovered)
 		}
 	}()
 
-	vd := validator.NewValidator()
-
-	h := server.New(
-		server.WithHostPorts("0.0.0.0:8080"),
-		server.WithReadTimeout(10*time.Second),
-		server.WithWriteTimeout(10*time.Second),
-		server.WithIdleTimeout(60*time.Second),
-		server.WithMaxRequestBodySize(limits.MaxRequestBodySize),
-		server.WithExitWaitTime(10*time.Second),
-		server.WithHandleMethodNotAllowed(true),
-		server.WithTransport(standard.NewTransporter),
-		server.WithCustomValidatorFunc(func(_ *protocol.Request, req any) error {
-			// 对传入的结构体执行校验
-			return vd.Struct(req)
-		}),
-	)
-
-	// OnShutdown 只做“准备下线”：标记不可用、通知后台任务停止
-	// 数据库/Redis/MQ 的关闭放到 h.Spin() 返回之后
-	h.Engine.OnShutdown = append(h.Engine.OnShutdown, func(ctx context.Context) {
-		app.BeforeShutdown(ctx)
-	})
-
-	// 全局中间件顺序：panic 恢复最外层，Trace 尽早注入，访问日志在错误收敛之前
-	h.Use(middleware.Recovery())
-	h.Use(middleware.Trace())
-	h.Use(middleware.AccessLog())
-	h.Use(middleware.ErrorHandler())
-	h.Use(middleware.CORS())
+	// HTTP 层装配（Option、Hooks、全局中间件）在 bootstrap 里，main 只保留编排
+	h := bootstrap.NewHTTP(app)
 
 	// Swagger UI：/swagger/index.html；doc.json 由 docs 包提供
 	// 注意：生产环境不要直接暴露，至少加鉴权或只在开发环境注册
@@ -93,12 +61,16 @@ func main() {
 	// 此时再释放数据库、Redis、MQ 等资源，避免打断正常请求
 	hlog.Info("[shutdown] HTTP 已停止，开始释放资源")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	if err := app.Close(shutdownCtx); err != nil {
+	if err := closeApp(app); err != nil {
 		hlog.Errorf("[shutdown] %v", err)
 		return
 	}
 	hlog.Info("[shutdown] 资源释放完成")
+}
+
+// closeApp 以统一超时释放资源，启动 panic 兜底与正常退出复用。
+func closeApp(app *bootstrap.Application) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return app.Close(ctx)
 }

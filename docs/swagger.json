@@ -40,6 +40,88 @@
                 }
             }
         },
+        "/api/v1/stream/chat": {
+            "post": {
+                "description": "接收 prompt，以 delta 事件逐段返回文本，最后发 done；接大模型时替换 mockReply 即可",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "流式"
+                ],
+                "summary": "流式对话（mock）",
+                "parameters": [
+                    {
+                        "description": "对话请求",
+                        "name": "req",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/stream.ChatReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE 事件流",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/stream.ErrorResp"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/stream.ErrorResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/stream/demo": {
+            "get": {
+                "description": "按 interval_ms 推送 count 条事件，每 15s 发一次心跳；客户端断开或写失败立即退出",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "流式"
+                ],
+                "summary": "SSE 定时推送演示",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "事件条数，1-100",
+                        "name": "count",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1000,
+                        "description": "推送间隔（毫秒），100-10000",
+                        "name": "interval_ms",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE 事件流",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/upload/batch": {
             "post": {
                 "description": "form-data 字段 files；一次 1-5 个文件，单文件 ≤5MB，扩展名走白名单校验",
@@ -285,6 +367,33 @@
         }
     },
     "definitions": {
+        "stream.ChatReq": {
+            "type": "object",
+            "required": [
+                "prompt"
+            ],
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "minLength": 1
+                }
+            }
+        },
+        "stream.ErrorResp": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "trace_id": {
+                    "type": "string"
+                }
+            }
+        },
         "system.FileData": {
             "type": "object",
             "properties": {

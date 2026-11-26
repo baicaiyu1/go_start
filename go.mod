@@ -3,6 +3,7 @@ module hertz-tutorial/demo
 go 1.27.4
 
 require (
+	github.com/apache/thrift v0.13.0
 	github.com/cloudwego/hertz v0.10.6
 	github.com/fatih/color v1.19.0
 	github.com/go-playground/validator/v10 v10.30.6
@@ -14,8 +15,8 @@ require (
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
-	github.com/bytedance/sonic v1.15.0 // indirect
-	github.com/bytedance/sonic/loader v0.5.0 // indirect
+	github.com/bytedance/sonic v1.15.5 // indirect
+	github.com/bytedance/sonic/loader v0.5.3 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/cloudwego/gopkg v0.2.0 // indirect
 	github.com/cloudwego/netpoll v0.7.5 // indirect
